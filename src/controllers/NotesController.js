@@ -37,7 +37,13 @@ class NotesController {
         });
     }
 
-    async delete(request, response) { }
+    async delete(request, response) {
+        const { id } = request.params;
+
+        await knex('notes').where({ id }).del();
+
+        return response.json();
+    }
 
     async index(request, response) { }
 }
