@@ -25,7 +25,45 @@ class UsersController {
     }
 
     async update(request, response) {
+        const { name, email, password, old_password } = request.body;
+        const { id } = request.params;
 
+        const user = await knex('users').where({ id }).first();
+
+        if (!user) {
+            throw new AppError('User not found.');
+        }
+
+        const userWithUpdatedEmail = await knex('users').where({ email }).first();
+
+        if (userWithUpdatedEmail && userWithUpdatedEmail.id !== user.id) {
+            throw new AppError('Email address already used.');
+        }
+
+        user.name = name ?? user.name;
+        user.email = email ?? user.email;
+
+        if (password && !old_password) {
+            const checkOldPassword = await compare(old_password, user.password);
+
+            if (!checkOldPassword) {
+                throw new AppError('Old password does not match.');
+            }
+
+            user.password = await hash(password, 8);
+        }
+
+        const database = await sqliteConnection();
+        await database.run(`
+            UPDATE users SET
+            name = "${user.name}",
+            email = "${user.email}",
+            password = "${user.password}",
+            updated_at = DATETIME('now')
+            WHERE id = ${id}`,
+        )
+
+        return response.json(user);
     }
 }
 
