@@ -1,9 +1,14 @@
 const knex = require('../database/knex');
+const AppError = require('../utils/AppError');
 
 class NotesController {
     async create(request, response) {
         const { title, description, rating, tags } = request.body;
-        const { user_id } = request.params;
+        const user_id = request.user.id;
+
+        if (rating < 0 || rating > 5) {
+            throw new AppError('Invalid rating, must be between 0 and 5');
+        }
 
         const [note_id] = await knex('notes').insert({
             title,
@@ -22,7 +27,7 @@ class NotesController {
 
         await knex('tags').insert(tagsInsert);
 
-        response.json();
+        return response.json();
     }
 
     async show(request, response) {
@@ -40,13 +45,15 @@ class NotesController {
     async delete(request, response) {
         const { id } = request.params;
 
-        await knex('notes').where({ id }).del();
+        await knex('notes').where({ id }).delete();
 
         return response.json();
     }
 
     async index(request, response) {
-        const { title, user_id, tags } = request.query;
+        const { title, tags } = request.query;
+
+        const user_id = request.user.id;
 
         let notes;
 
@@ -59,9 +66,13 @@ class NotesController {
                 .whereLike('notes.title', `%${title}%`)
                 .whereIn('name', filterTags)
                 .innerJoin('notes', 'notes.id', 'tags.note_id')
+                .groupBy('notes.id')
                 .orderBy('notes.title');
         } else {
-            notes = await knex('notes').where({ user_id }).whereLike('title', `%${title}%`).orderBy('title');
+            notes = await knex('notes')
+                .where({ user_id })
+                .whereLike('title', `%${title}%`)
+                .orderBy('title');
         }
 
         const userTags = await knex('tags').where({ user_id });
